@@ -728,6 +728,7 @@ class RosInterface:
         self.pub_steering = None
         self.pub_reset = None
         self.pub_joy = None
+        self.pub_deadman = None
         self._shutdown = False
         self._pending_lock = Lock()
         self._pending_image = None
@@ -753,6 +754,7 @@ class RosInterface:
             )
             self.pub_reset = rospy.Publisher("/autodrive/reset_command", Bool, queue_size=1)
             self.pub_joy = rospy.Publisher("/vesc/joy", Joy, queue_size=10)
+            self.pub_deadman = rospy.Publisher("/autodrive/deadman_switch", Bool, queue_size=1)
             rospy.Subscriber(self.args.camera_topic, Image, self._on_image, queue_size=1)
             rospy.Subscriber(self.args.speed_topic, Float32, self._on_speed, queue_size=1)
             rospy.Subscriber(self.args.lap_time_topic, Float32, self._on_lap_time, queue_size=1)
@@ -777,6 +779,7 @@ class RosInterface:
             )
             self.pub_reset = self.node.create_publisher(Bool, "/autodrive/reset_command", qos)
             self.pub_joy = self.node.create_publisher(Joy, "/joy", 10)
+            self.pub_deadman = self.node.create_publisher(Bool, "/autodrive/deadman_switch", qos)
             self.node.create_subscription(Image, self.args.camera_topic, self._on_image, qos)
             self.node.create_subscription(Float32, self.args.speed_topic, self._on_speed, qos)
             self.node.create_subscription(Float32, self.args.lap_time_topic, self._on_lap_time, qos)
@@ -831,6 +834,10 @@ class RosInterface:
     def publish(self, state, mode):
         if self._shutdown:
             return
+        deadman_msg = Bool()
+        deadman_msg.data = mode == "autodrive"
+        self.pub_deadman.publish(deadman_msg)
+
         if self.args.f1tenth and mode == "autodrive":
             return
         if mode == "autodrive":
@@ -968,6 +975,7 @@ def main():
     print(f"camera: {args.camera_topic}")
     print(f"speed: {args.speed_topic}")
     print(f"collision count: {args.collision_count_topic}")
+    print("deadman switch: /autodrive/deadman_switch")
     print("keys: Up/Down throttle, Left/Right steer, SPACE stop, R reset, A mode")
 
     window.show()

@@ -154,6 +154,28 @@ Example:
   --namespace /autodrive/roboracer_1
 ```
 
+## AutoDRIVE Teleop's Extension Topics
+
+`autodrive_teleop.py` publishes an additional `std_msgs/Bool` drive-state topic:
+
+```text
+/autodrive/deadman_switch
+```
+
+The value indicates which side currently has control:
+
+| Value | Meaning |
+| --- | --- |
+| `true` / `1` | Autonomous Drive mode |
+| `false` / `0` | Human Drive mode |
+
+This is an AutoDRIVE Teleop extension topic for autonomous driving software
+built on the AutoDRIVE Devkit. A controller that also publishes to
+`/autodrive/roboracer_1/throttle_command` and
+`/autodrive/roboracer_1/steering_command` can subscribe to
+`/autodrive/deadman_switch` and stop publishing its own throttle and steering
+commands while AutoDRIVE Teleop is in Human Drive mode.
+
 ## F1TENTH Compatibility Mode
 
 F1TENTH mode publishes `sensor_msgs/Joy` instead of AutoDRIVE command messages.
