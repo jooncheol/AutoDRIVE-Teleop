@@ -1,5 +1,8 @@
 # AutoDRIVE Teleop
 
+<img src="screenshot.png" alt="AutoDRIVE Teleop dashboard" width="400">
+
+
 `autodrive_teleop.py` is a small Qt-based teleoperation dashboard for
 AutoDRIVE RoboRacer and F1TENTH-compatible ROS stacks.
 
