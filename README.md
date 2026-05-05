@@ -8,7 +8,8 @@ AutoDRIVE RoboRacer and F1TENTH-compatible ROS stacks.
 
 It publishes steering and throttle commands from the keyboard, displays basic
 race telemetry, can show the front camera feed, and can switch between native
-AutoDRIVE command topics and a F1TENTH `sensor_msgs/Joy` compatibility mode.
+AutoDRIVE and Human Drive mode. By default it publishes native AutoDRIVE command
+topics, with optional F1TENTH-compatible `sensor_msgs/Joy` output.
 
 ## Features
 
@@ -18,7 +19,8 @@ AutoDRIVE command topics and a F1TENTH `sensor_msgs/Joy` compatibility mode.
   - `<namespace>/throttle_command`
   - `<namespace>/steering_command`
   - `/autodrive/reset_command`
-- F1TENTH compatibility mode using `sensor_msgs/Joy`.
+- AutoDRIVE and Human Drive modes with native AutoDRIVE command output.
+- Optional F1TENTH-compatible `sensor_msgs/Joy` output.
 - Optional front camera preview from `sensor_msgs/Image`.
 - Optional lap time, last lap, best lap, speed, and collision count display.
 - Configurable vehicle namespace and telemetry topics.
@@ -125,7 +127,7 @@ Click the teleop window first so it has keyboard focus.
 | Right arrow | Steer right |
 | Space | Stop throttle and steering |
 | R | Stop and publish AutoDRIVE reset command |
-| A | Toggle AutoDRIVE/F1TENTH output mode |
+| A | Toggle AutoDRIVE/Human Drive output mode |
 | Escape | Quit |
 
 Throttle and steering return toward zero when the arrow keys are released.
@@ -176,9 +178,18 @@ built on the AutoDRIVE Devkit. A controller that also publishes to
 `/autodrive/deadman_switch` and stop publishing its own throttle and steering
 commands while AutoDRIVE Teleop is in Human Drive mode.
 
-## F1TENTH Compatibility Mode
+## Human Drive Mode
 
-F1TENTH mode publishes `sensor_msgs/Joy` instead of AutoDRIVE command messages.
+Human Drive mode changes `/autodrive/deadman_switch` to `false`, but the default
+command output remains the native AutoDRIVE command topics:
+
+```text
+<namespace>/throttle_command
+<namespace>/steering_command
+```
+
+Use `--f1tenth` only when you want F1TENTH-compatible `sensor_msgs/Joy` output
+instead of AutoDRIVE command messages.
 
 Output topic:
 
@@ -194,10 +205,10 @@ Joy mapping:
 | `buttons[4]` | `1` |
 | `buttons[5]` | `0` |
 
-Start directly in F1TENTH mode:
+Start directly in Human Drive mode:
 
 ```bash
-./autodrive_teleop.py --ros 2 --mode f1tenth
+./autodrive_teleop.py --ros 2 --mode humandrive
 ```
 
 Or force F1TENTH-only publishing:
@@ -206,8 +217,8 @@ Or force F1TENTH-only publishing:
 ./autodrive_teleop.py --ros 2 --f1tenth
 ```
 
-`--f1tenth` prevents AutoDRIVE command publishing while the UI is in AutoDRIVE
-mode. This is useful when you only want Joy output for a F1TENTH stack.
+`--f1tenth` prevents AutoDRIVE command publishing in both AutoDRIVE and Human
+Drive modes. This is useful when you only want Joy output for a F1TENTH stack.
 
 ## Telemetry Topics
 
@@ -243,14 +254,28 @@ The command publish rate defaults to 20 Hz:
 ./autodrive_teleop.py --rate 30
 ```
 
+Native AutoDRIVE command output applies a throttle scale so the direct
+`Float32` command path is less aggressive by default:
+
+```bash
+./autodrive_teleop.py --autodrive-throttle-scale 0.35
+```
+
+You can also adjust the native steering scale:
+
+```bash
+./autodrive_teleop.py --autodrive-steering-scale 0.8
+```
+
 Throttle and steering ramp speed can be adjusted:
 
 ```bash
 ./autodrive_teleop.py --throttle-step 1.0 --steer-step 1.8
 ```
 
-Both values are in normalized command units per second. Commands are clamped to
-the range `[-1.0, 1.0]`.
+Ramp values are in normalized command units per second. Keyboard input is
+clamped to the range `[-1.0, 1.0]`, then native AutoDRIVE scale factors are
+applied before publishing.
 
 ## Useful Examples
 
@@ -266,16 +291,16 @@ ROS 1 AutoDRIVE bridge:
 ./autodrive_teleop.py --ros 1 --namespace /autodrive/roboracer_1
 ```
 
-ROS 2 F1TENTH Joy output:
+ROS 2 F1TENTH-compatible Joy output:
 
 ```bash
-./autodrive_teleop.py --ros 2 --mode f1tenth
+./autodrive_teleop.py --ros 2 --mode humandrive --f1tenth
 ```
 
-ROS 1 F1TENTH VESC Joy output:
+ROS 1 F1TENTH-compatible VESC Joy output:
 
 ```bash
-./autodrive_teleop.py --ros 1 --mode f1tenth
+./autodrive_teleop.py --ros 1 --mode humandrive --f1tenth
 ```
 
 Custom RoboRacer namespace:

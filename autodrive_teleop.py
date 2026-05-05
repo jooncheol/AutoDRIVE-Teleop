@@ -98,7 +98,7 @@ def parse_args():
     )
     parser.add_argument(
         "--mode",
-        choices=("autodrive", "f1tenth"),
+        choices=("autodrive", "humandrive"),
         default="autodrive",
         help="Initial command output mode (default: %(default)s).",
     )
@@ -122,6 +122,18 @@ def parse_args():
     parser.add_argument("--best-lap-topic", default=None, help="Best lap Float32 topic.")
     parser.add_argument("--collision-count-topic", default=None, help="Collision count Int32 topic.")
     parser.add_argument("--rate", type=float, default=20.0, help="Command publish rate in Hz.")
+    parser.add_argument(
+        "--autodrive-throttle-scale",
+        type=float,
+        default=0.15,
+        help="Scale applied to native AutoDRIVE throttle commands (default: %(default)s).",
+    )
+    parser.add_argument(
+        "--autodrive-steering-scale",
+        type=float,
+        default=0.8,
+        help="Scale applied to native AutoDRIVE steering commands (default: %(default)s).",
+    )
     parser.add_argument(
         "--throttle-step",
         type=float,
@@ -459,10 +471,10 @@ class AutoDriveTeleopWindow(QtWidgets.QWidget):
     def set_collision_count(self, value):
         del value
         if self.state.deadman_released and self.mode == "autodrive":
-            self.set_mode("f1tenth")
+            self.set_mode("humandrive")
 
     def _toggle_mode_from_button(self, checked=False):
-        self.set_mode("autodrive" if checked else "f1tenth")
+        self.set_mode("autodrive" if checked else "humandrive")
 
     def _set_front_camera_enabled(self, enabled):
         self.front_camera_enabled = bool(enabled)
@@ -504,7 +516,9 @@ class AutoDriveTeleopWindow(QtWidgets.QWidget):
 
         if not getattr(self.args, "mode_explicit", False):
             saved_mode = self.settings.value("drive_mode", self.mode)
-            if saved_mode in ("autodrive", "f1tenth"):
+            if saved_mode == "f1tenth":
+                saved_mode = "humandrive"
+            if saved_mode in ("autodrive", "humandrive"):
                 self.mode = saved_mode
         self._restoring_settings = False
 
@@ -518,7 +532,7 @@ class AutoDriveTeleopWindow(QtWidgets.QWidget):
         self.settings.sync()
 
     def set_mode(self, mode):
-        if mode not in ("autodrive", "f1tenth") or mode == self.mode:
+        if mode not in ("autodrive", "humandrive") or mode == self.mode:
             return
         self.state.stop()
         self.mode = mode
@@ -661,7 +675,7 @@ class AutoDriveTeleopWindow(QtWidgets.QWidget):
             event.accept()
             return
         if key == qt_key_value(qt_enum("Key_A", "Key")):
-            self.set_mode("f1tenth" if self.mode == "autodrive" else "autodrive")
+            self.set_mode("humandrive" if self.mode == "autodrive" else "autodrive")
             event.accept()
             return
         if key == qt_key_value(qt_enum("Key_Space", "Key")):
@@ -838,14 +852,12 @@ class RosInterface:
         deadman_msg.data = mode == "autodrive"
         self.pub_deadman.publish(deadman_msg)
 
-        if self.args.f1tenth and mode == "autodrive":
-            return
-        if mode == "autodrive":
+        if not self.args.f1tenth:
             throttle_msg = Float32()
             steering_msg = Float32()
             reset_msg = Bool()
-            throttle_msg.data = float(state.throttle)
-            steering_msg.data = float(state.steering)
+            throttle_msg.data = float(state.throttle) * self.args.autodrive_throttle_scale
+            steering_msg.data = float(state.steering) * self.args.autodrive_steering_scale
             reset_msg.data = bool(state.reset_pending)
             self.pub_throttle.publish(throttle_msg)
             self.pub_steering.publish(steering_msg)
@@ -869,8 +881,6 @@ class RosInterface:
     def publish_neutral(self, mode):
         neutral = TeleopState(self.args)
         self.publish(neutral, mode)
-        if mode != "autodrive":
-            self.publish(neutral, "autodrive")
 
     def shutdown(self):
         if self._shutdown:
@@ -964,7 +974,7 @@ def main():
 
     print("AutoDRIVE Qt Widgets teleop")
     print(f"Qt: {QT_BINDING}, ROS{ros_version}, mode: {args.mode}")
-    if args.mode == "f1tenth":
+    if args.f1tenth:
         print(f"publishing controls: {'/vesc/joy' if ros_version == 1 else '/joy'}")
     else:
         print(
