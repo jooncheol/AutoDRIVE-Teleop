@@ -98,8 +98,8 @@ def parse_args():
     )
     parser.add_argument(
         "--mode",
-        choices=("autodrive", "humandrive"),
-        default="autodrive",
+        choices=("autonomous", "manual"),
+        default="autonomous",
         help="Initial command output mode (default: %(default)s).",
     )
     parser.add_argument(
@@ -470,11 +470,11 @@ class AutoDriveTeleopWindow(QtWidgets.QWidget):
 
     def set_collision_count(self, value):
         del value
-        if self.state.deadman_released and self.mode == "autodrive":
-            self.set_mode("humandrive")
+        if self.state.deadman_released and self.mode == "autonomous":
+            self.set_mode("manual")
 
     def _toggle_mode_from_button(self, checked=False):
-        self.set_mode("autodrive" if checked else "humandrive")
+        self.set_mode("autonomous" if checked else "manual")
 
     def _set_front_camera_enabled(self, enabled):
         self.front_camera_enabled = bool(enabled)
@@ -516,9 +516,12 @@ class AutoDriveTeleopWindow(QtWidgets.QWidget):
 
         if not getattr(self.args, "mode_explicit", False):
             saved_mode = self.settings.value("drive_mode", self.mode)
-            if saved_mode == "f1tenth":
-                saved_mode = "humandrive"
-            if saved_mode in ("autodrive", "humandrive"):
+            saved_mode = {
+                "autodrive": "autonomous",
+                "humandrive": "manual",
+                "f1tenth": "manual",
+            }.get(saved_mode, saved_mode)
+            if saved_mode in ("autonomous", "manual"):
                 self.mode = saved_mode
         self._restoring_settings = False
 
@@ -532,9 +535,12 @@ class AutoDriveTeleopWindow(QtWidgets.QWidget):
         self.settings.sync()
 
     def set_mode(self, mode):
-        if mode not in ("autodrive", "humandrive") or mode == self.mode:
+        if mode not in ("autonomous", "manual") or mode == self.mode:
             return
+        previous_mode = self.mode
         self.state.stop()
+        if previous_mode == "manual" and self.ros is not None:
+            self.ros.publish_neutral(previous_mode)
         self.mode = mode
         self._refresh_ui()
         self._save_settings()
@@ -595,8 +601,8 @@ class AutoDriveTeleopWindow(QtWidgets.QWidget):
             label.style().polish(label)
 
         self.mode_button.blockSignals(True)
-        self.mode_button.setChecked(self.mode == "autodrive")
-        self.mode_button.setText("Autonomous Drive" if self.mode == "autodrive" else "Human Drive")
+        self.mode_button.setChecked(self.mode == "autonomous")
+        self.mode_button.setText("Autonomous Drive" if self.mode == "autonomous" else "Manual Drive")
         self.mode_button.blockSignals(False)
 
     def _install_drag_filters(self):
@@ -675,7 +681,7 @@ class AutoDriveTeleopWindow(QtWidgets.QWidget):
             event.accept()
             return
         if key == qt_key_value(qt_enum("Key_A", "Key")):
-            self.set_mode("humandrive" if self.mode == "autodrive" else "autodrive")
+            self.set_mode("manual" if self.mode == "autonomous" else "autonomous")
             event.accept()
             return
         if key == qt_key_value(qt_enum("Key_Space", "Key")):
@@ -849,8 +855,12 @@ class RosInterface:
         if self._shutdown:
             return
         deadman_msg = Bool()
-        deadman_msg.data = mode == "autodrive"
+        deadman_msg.data = mode == "autonomous"
         self.pub_deadman.publish(deadman_msg)
+
+        if mode != "manual":
+            state.reset_pending = False
+            return
 
         if not self.args.f1tenth:
             throttle_msg = Float32()

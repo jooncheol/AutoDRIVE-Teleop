@@ -7,9 +7,10 @@
 AutoDRIVE RoboRacer and F1TENTH-compatible ROS stacks.
 
 It publishes steering and throttle commands from the keyboard, displays basic
-race telemetry, can show the front camera feed, and can switch between native
-AutoDRIVE and Human Drive mode. By default it publishes native AutoDRIVE command
-topics, with optional F1TENTH-compatible `sensor_msgs/Joy` output.
+race telemetry, can show the front camera feed, and can switch between
+Autonomous Drive and Manual Drive mode. Manual Drive mode publishes native
+AutoDRIVE command topics by default, with optional F1TENTH-compatible
+`sensor_msgs/Joy` output.
 
 ## Features
 
@@ -19,7 +20,7 @@ topics, with optional F1TENTH-compatible `sensor_msgs/Joy` output.
   - `<namespace>/throttle_command`
   - `<namespace>/steering_command`
   - `/autodrive/reset_command`
-- AutoDRIVE and Human Drive modes with native AutoDRIVE command output.
+- Autonomous Drive and Manual Drive modes with native AutoDRIVE command output.
 - Optional F1TENTH-compatible `sensor_msgs/Joy` output.
 - Optional front camera preview from `sensor_msgs/Image`.
 - Optional lap time, last lap, best lap, speed, and collision count display.
@@ -127,32 +128,29 @@ Click the teleop window first so it has keyboard focus.
 | Right arrow | Steer right |
 | Space | Stop throttle and steering |
 | R | Stop and publish AutoDRIVE reset command |
-| A | Toggle AutoDRIVE/Human Drive output mode |
+| A | Toggle Autonomous Drive/Manual Drive output mode |
 | Escape | Quit |
 
 Throttle and steering return toward zero when the arrow keys are released.
 
-## AutoDRIVE Mode
+## Autonomous Drive Mode
 
-AutoDRIVE mode publishes `std_msgs/Float32` commands:
-
-```text
-<namespace>/throttle_command
-<namespace>/steering_command
-```
-
-It also publishes `std_msgs/Bool` reset commands to:
+Autonomous Drive mode publishes only the drive-state extension topic:
 
 ```text
-/autodrive/reset_command
+/autodrive/deadman_switch = true
 ```
+
+It does not publish teleoperation throttle or steering commands in this mode.
+This prevents AutoDRIVE Teleop from mixing zero-valued commands with an
+autonomous driving stack that owns the native AutoDRIVE command topics.
 
 Example:
 
 ```bash
 ./autodrive_teleop.py \
   --ros 2 \
-  --mode autodrive \
+  --mode autonomous \
   --namespace /autodrive/roboracer_1
 ```
 
@@ -169,19 +167,21 @@ The value indicates which side currently has control:
 | Value | Meaning |
 | --- | --- |
 | `true` / `1` | Autonomous Drive mode |
-| `false` / `0` | Human Drive mode |
+| `false` / `0` | Manual Drive mode |
 
 This is an AutoDRIVE Teleop extension topic for autonomous driving software
-built on the AutoDRIVE Devkit. A controller that also publishes to
+built on the AutoDRIVE Devkit. A controller can subscribe to
+`/autodrive/deadman_switch` and publish to
 `/autodrive/roboracer_1/throttle_command` and
-`/autodrive/roboracer_1/steering_command` can subscribe to
-`/autodrive/deadman_switch` and stop publishing its own throttle and steering
-commands while AutoDRIVE Teleop is in Human Drive mode.
+`/autodrive/roboracer_1/steering_command` only while the value is `true`.
+When the value is `false`, AutoDRIVE Teleop is in Manual Drive mode and owns the
+teleoperation command output.
 
-## Human Drive Mode
+## Manual Drive Mode
 
-Human Drive mode changes `/autodrive/deadman_switch` to `false`, but the default
-command output remains the native AutoDRIVE command topics:
+Manual Drive mode changes `/autodrive/deadman_switch` to `false` and publishes
+the teleoperation command output. By default, it uses the native AutoDRIVE
+command topics:
 
 ```text
 <namespace>/throttle_command
@@ -205,10 +205,10 @@ Joy mapping:
 | `buttons[4]` | `1` |
 | `buttons[5]` | `0` |
 
-Start directly in Human Drive mode:
+Start directly in Manual Drive mode:
 
 ```bash
-./autodrive_teleop.py --ros 2 --mode humandrive
+./autodrive_teleop.py --ros 2 --mode manual
 ```
 
 Or force F1TENTH-only publishing:
@@ -217,8 +217,8 @@ Or force F1TENTH-only publishing:
 ./autodrive_teleop.py --ros 2 --f1tenth
 ```
 
-`--f1tenth` prevents AutoDRIVE command publishing in both AutoDRIVE and Human
-Drive modes. This is useful when you only want Joy output for a F1TENTH stack.
+`--f1tenth` prevents native AutoDRIVE command publishing in Manual Drive mode.
+This is useful when you only want Joy output for a F1TENTH stack.
 
 ## Telemetry Topics
 
@@ -294,13 +294,13 @@ ROS 1 AutoDRIVE bridge:
 ROS 2 F1TENTH-compatible Joy output:
 
 ```bash
-./autodrive_teleop.py --ros 2 --mode humandrive --f1tenth
+./autodrive_teleop.py --ros 2 --mode manual --f1tenth
 ```
 
 ROS 1 F1TENTH-compatible VESC Joy output:
 
 ```bash
-./autodrive_teleop.py --ros 1 --mode humandrive --f1tenth
+./autodrive_teleop.py --ros 1 --mode manual --f1tenth
 ```
 
 Custom RoboRacer namespace:
