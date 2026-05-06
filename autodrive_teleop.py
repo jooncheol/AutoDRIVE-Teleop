@@ -7,6 +7,7 @@ import sys
 import time
 from threading import Lock
 
+from ackermann_msgs.msg import AckermannDriveStamped
 from sensor_msgs.msg import Image, Joy
 from std_msgs.msg import Bool, Float32, Int32
 
@@ -797,7 +798,12 @@ class RosInterface:
             rospy.Subscriber(self.args.best_lap_topic, Float32, self._on_best_lap, queue_size=1)
             rospy.Subscriber(self.args.collision_count_topic, Int32, self._on_collision_count, queue_size=1)
             if self.args.f1tenth:
-                rospy.Subscriber("/vesc/joy", Joy, self._on_joy_control, queue_size=1)
+                rospy.Subscriber(
+                    "/vesc/low_level/ackermann_cmd_mux/output",
+                    AckermannDriveStamped,
+                    self._on_ackermann_control,
+                    queue_size=1,
+                )
             else:
                 rospy.Subscriber(
                     topic_join(self.args.namespace, "throttle_command"),
@@ -837,7 +843,7 @@ class RosInterface:
             self.node.create_subscription(Float32, self.args.best_lap_topic, self._on_best_lap, qos)
             self.node.create_subscription(Int32, self.args.collision_count_topic, self._on_collision_count, qos)
             if self.args.f1tenth:
-                self.node.create_subscription(Joy, "/joy", self._on_joy_control, qos)
+                self.node.create_subscription(AckermannDriveStamped, "/drive", self._on_ackermann_control, qos)
             else:
                 self.node.create_subscription(
                     Float32,
@@ -989,11 +995,11 @@ class RosInterface:
             scale = self.args.autodrive_steering_scale or 1.0
             self._pending_display_steering = float(msg.data) / scale
 
-    def _on_joy_control(self, msg):
-        throttle = msg.axes[1] if len(msg.axes) > 1 else 0.0
-        steering = msg.axes[3] if len(msg.axes) > 3 else 0.0
+    def _on_ackermann_control(self, msg):
+        throttle = float(msg.drive.speed) / 5.0
+        steering = msg.drive.steering_angle
         with self._pending_lock:
-            self._pending_display_throttle = float(throttle)
+            self._pending_display_throttle = clamp(throttle)
             self._pending_display_steering = float(steering)
 
 

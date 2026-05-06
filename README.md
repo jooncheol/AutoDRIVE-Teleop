@@ -196,7 +196,7 @@ Output topic:
 - ROS 1: `/vesc/joy`
 - ROS 2: `/joy`
 
-Joy mapping:
+Joy output mapping:
 
 | Joy field | Value |
 | --- | --- |
@@ -204,6 +204,12 @@ Joy mapping:
 | `axes[3]` | steering |
 | `buttons[4]` | `1` |
 | `buttons[5]` | `0` |
+
+Display control input is read from F1TENTH Ackermann command topics:
+
+- ROS 1: `/vesc/low_level/ackermann_cmd_mux/output`
+- ROS 2: `/drive`
+- Message type: `ackermann_msgs/AckermannDriveStamped`
 
 Start directly in Manual Drive mode:
 
