@@ -311,6 +311,8 @@ class AutoDriveTeleopWindow(QtWidgets.QWidget):
         self.lap_time = None
         self.last_lap = None
         self.best_lap = None
+        self.display_throttle = 0.0
+        self.display_steering = 0.0
         self.latest_camera = None
         self.front_camera_enabled = False
         self.ros = None
@@ -388,7 +390,7 @@ class AutoDriveTeleopWindow(QtWidgets.QWidget):
         self.speed_panel = QtWidgets.QLabel(self)
         self.speed_panel.setObjectName("glass")
         self.speed_panel.setGeometry(8, 7, 100, 36)
-        self.speed_label = QtWidgets.QLabel("000.0", self)
+        self.speed_label = QtWidgets.QLabel("0.00", self)
         self.speed_label.setObjectName("speed")
         self.speed_label.setGeometry(14, 8, 88, 34)
         self.speed_label.setAlignment(qt_enum("AlignCenter", "AlignmentFlag"))
@@ -467,6 +469,10 @@ class AutoDriveTeleopWindow(QtWidgets.QWidget):
 
     def set_best_lap(self, value):
         self.best_lap = float(value)
+
+    def set_display_control(self, throttle, steering):
+        self.display_throttle = clamp(float(throttle))
+        self.display_steering = clamp(float(steering))
 
     def set_collision_count(self, value):
         del value
@@ -570,7 +576,7 @@ class AutoDriveTeleopWindow(QtWidgets.QWidget):
             self.camera_label.setText("NO CAMERA")
             self.manual_label.hide()
 
-        self.speed_label.setText(f"{self.speed:05.1f}")
+        self.speed_label.setText(f"{self.speed:02.2f}")
         self.lap_value_label.setText(format_seconds(self.lap_time))
         self.last_lap_value_label.setText(format_seconds(self.last_lap))
         self.best_lap_value_label.setText(format_seconds(self.best_lap))
@@ -591,11 +597,13 @@ class AutoDriveTeleopWindow(QtWidgets.QWidget):
                 f"color: {lap_value_color}; "
                 "font-family: 'DejaVu Sans Mono', monospace; font-size: 10px; font-weight: 700;"
             )
-        self.wheel.set_steering(self.state.steering)
-        self.gauge.set_throttle(self.state.throttle)
+        display_throttle = self.display_throttle if self.mode == "autonomous" else self.state.throttle
+        display_steering = self.display_steering if self.mode == "autonomous" else self.state.steering
+        self.wheel.set_steering(display_steering)
+        self.gauge.set_throttle(display_throttle)
 
-        self.drive_label.setObjectName("gearOnD" if self.state.throttle >= -0.02 else "gearOff")
-        self.reverse_label.setObjectName("gearOnR" if self.state.throttle < -0.02 else "gearOff")
+        self.drive_label.setObjectName("gearOnD" if display_throttle >= -0.02 else "gearOff")
+        self.reverse_label.setObjectName("gearOnR" if display_throttle < -0.02 else "gearOff")
         for label in (self.drive_label, self.reverse_label):
             label.style().unpolish(label)
             label.style().polish(label)
@@ -757,6 +765,8 @@ class RosInterface:
         self._pending_last_lap = None
         self._pending_best_lap = None
         self._pending_collision_count = None
+        self._pending_display_throttle = None
+        self._pending_display_steering = None
         self._last_collision_count = None
         self._init_ros()
 
@@ -781,6 +791,21 @@ class RosInterface:
             rospy.Subscriber(self.args.last_lap_topic, Float32, self._on_last_lap, queue_size=1)
             rospy.Subscriber(self.args.best_lap_topic, Float32, self._on_best_lap, queue_size=1)
             rospy.Subscriber(self.args.collision_count_topic, Int32, self._on_collision_count, queue_size=1)
+            if self.args.f1tenth:
+                rospy.Subscriber("/vesc/joy", Joy, self._on_joy_control, queue_size=1)
+            else:
+                rospy.Subscriber(
+                    topic_join(self.args.namespace, "throttle_command"),
+                    Float32,
+                    self._on_display_throttle,
+                    queue_size=1,
+                )
+                rospy.Subscriber(
+                    topic_join(self.args.namespace, "steering_command"),
+                    Float32,
+                    self._on_display_steering,
+                    queue_size=1,
+                )
             return
 
         if self.ros_version == 2:
@@ -806,6 +831,21 @@ class RosInterface:
             self.node.create_subscription(Float32, self.args.last_lap_topic, self._on_last_lap, qos)
             self.node.create_subscription(Float32, self.args.best_lap_topic, self._on_best_lap, qos)
             self.node.create_subscription(Int32, self.args.collision_count_topic, self._on_collision_count, qos)
+            if self.args.f1tenth:
+                self.node.create_subscription(Joy, "/joy", self._on_joy_control, qos)
+            else:
+                self.node.create_subscription(
+                    Float32,
+                    topic_join(self.args.namespace, "throttle_command"),
+                    self._on_display_throttle,
+                    qos,
+                )
+                self.node.create_subscription(
+                    Float32,
+                    topic_join(self.args.namespace, "steering_command"),
+                    self._on_display_steering,
+                    qos,
+                )
             return
 
         raise RuntimeError(f"Unsupported ROS version '{self.ros_version}'")
@@ -829,12 +869,16 @@ class RosInterface:
             last_lap = self._pending_last_lap
             best_lap = self._pending_best_lap
             collision_count = self._pending_collision_count
+            display_throttle = self._pending_display_throttle
+            display_steering = self._pending_display_steering
             self._pending_image = None
             self._pending_speed = None
             self._pending_lap_time = None
             self._pending_last_lap = None
             self._pending_best_lap = None
             self._pending_collision_count = None
+            self._pending_display_throttle = None
+            self._pending_display_steering = None
 
         if image is not None:
             self.window.set_camera_image(image)
@@ -850,6 +894,10 @@ class RosInterface:
             if self._last_collision_count is not None and collision_count > self._last_collision_count:
                 self.window.set_collision_count(collision_count)
             self._last_collision_count = collision_count
+        if display_throttle is not None or display_steering is not None:
+            throttle = self.window.display_throttle if display_throttle is None else display_throttle
+            steering = self.window.display_steering if display_steering is None else display_steering
+            self.window.set_display_control(throttle, steering)
 
     def publish(self, state, mode):
         if self._shutdown:
@@ -925,6 +973,23 @@ class RosInterface:
     def _on_collision_count(self, msg):
         with self._pending_lock:
             self._pending_collision_count = int(msg.data)
+
+    def _on_display_throttle(self, msg):
+        with self._pending_lock:
+            scale = self.args.autodrive_throttle_scale or 1.0
+            self._pending_display_throttle = float(msg.data) / scale
+
+    def _on_display_steering(self, msg):
+        with self._pending_lock:
+            scale = self.args.autodrive_steering_scale or 1.0
+            self._pending_display_steering = float(msg.data) / scale
+
+    def _on_joy_control(self, msg):
+        throttle = msg.axes[1] if len(msg.axes) > 1 else 0.0
+        steering = msg.axes[3] if len(msg.axes) > 3 else 0.0
+        with self._pending_lock:
+            self._pending_display_throttle = float(throttle)
+            self._pending_display_steering = float(steering)
 
 
 def image_msg_to_qimage(msg):
