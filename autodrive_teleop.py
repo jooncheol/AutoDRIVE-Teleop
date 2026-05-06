@@ -576,6 +576,11 @@ class AutoDriveTeleopWindow(QtWidgets.QWidget):
             self.camera_label.setText("NO CAMERA")
             self.manual_label.hide()
 
+        panel_bg = "rgba(0, 0, 0, 150)" if self.front_camera_enabled else "rgba(0, 0, 0, 51)"
+        panel_style = f"background: {panel_bg}; border-radius: 4px;"
+        self.speed_panel.setStyleSheet(panel_style)
+        self.lap_panel.setStyleSheet(panel_style)
+
         self.speed_label.setText(f"{self.speed:02.2f}")
         self.lap_value_label.setText(format_seconds(self.lap_time))
         self.last_lap_value_label.setText(format_seconds(self.last_lap))
