@@ -87,6 +87,20 @@ def format_seconds(value):
     return f"{minutes:02d}:{seconds:06.3f}"
 
 
+def default_settings_path():
+    return os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        ".autodrive_teleop.ini",
+    )
+
+
+def settings_path_from_env():
+    settings_path = os.environ.get("AUTODRIVE_TELEOP_SETTINGS")
+    if not settings_path:
+        return default_settings_path()
+    return os.path.abspath(os.path.expanduser(settings_path))
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Qt Widgets AutoDRIVE and F1TENTH teleop dashboard.",
@@ -301,10 +315,10 @@ class AutoDriveTeleopWindow(QtWidgets.QWidget):
         super().__init__()
         self.args = args
         self.ros_version = ros_version
-        settings_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            ".autodrive_teleop.ini",
-        )
+        settings_path = settings_path_from_env()
+        settings_dir = os.path.dirname(settings_path)
+        if settings_dir:
+            os.makedirs(settings_dir, exist_ok=True)
         self.settings = QtCore.QSettings(settings_path, QtCore.QSettings.IniFormat)
         self.state = TeleopState(args)
         self.mode = args.mode

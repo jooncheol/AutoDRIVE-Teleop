@@ -116,6 +116,13 @@ The AutoDRIVE bridge or simulator must subscribe to the same command topics. If
 your bridge is hard-coded to `/autodrive/roboracer_1`, update the bridge config
 or use ROS remapping.
 
+## Window Settings
+
+The dashboard stores window geometry and UI state in `.autodrive_teleop.ini`
+next to the script by default. Set `AUTODRIVE_TELEOP_SETTINGS` to write the
+settings file somewhere else, such as a host-mounted path when running in a
+throwaway container.
+
 ## Controls
 
 Click the teleop window first so it has keyboard focus.
