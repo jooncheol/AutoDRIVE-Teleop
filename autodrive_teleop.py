@@ -132,6 +132,7 @@ def parse_args():
     )
     parser.add_argument("--camera-topic", default=None, help="Front camera Image topic.")
     parser.add_argument("--speed-topic", default=None, help="Speed Float32 topic.")
+    parser.add_argument("--label", type=str, default="Roboracer 1", help="Label to display in the top-left panel.")
     parser.add_argument("--lap-time-topic", default=None, help="Lap time Float32 topic.")
     parser.add_argument("--last-lap-topic", default=None, help="Last lap Float32 topic.")
     parser.add_argument("--best-lap-topic", default=None, help="Best lap Float32 topic.")
@@ -322,6 +323,7 @@ class AutoDriveTeleopWindow(QtWidgets.QWidget):
         self.settings = QtCore.QSettings(settings_path, QtCore.QSettings.IniFormat)
         self.state = TeleopState(args)
         self.mode = args.mode
+        self.label = str(args.label).strip()
         self.speed = 0.0
         self.lap_time = None
         self.last_lap = None
@@ -458,6 +460,19 @@ class AutoDriveTeleopWindow(QtWidgets.QWidget):
         self._restore_settings()
         self._install_drag_filters()
         self._refresh_ui()
+
+    def _label_text(self):
+        return self.label
+
+    def _resize_label_panel(self, text):
+        metrics = QtGui.QFontMetrics(self.speed_label.font())
+        if hasattr(metrics, "horizontalAdvance"):
+            text_width = metrics.horizontalAdvance(text)
+        else:
+            text_width = metrics.width(text)
+        panel_width = min(max(100, text_width + 24), self.width() - 16)
+        self.speed_panel.setGeometry(8, 7, panel_width, 36)
+        self.speed_label.setGeometry(14, 8, panel_width - 12, 34)
 
     def _init_key_map(self):
         self.key_map = {
@@ -596,7 +611,9 @@ class AutoDriveTeleopWindow(QtWidgets.QWidget):
         self.speed_panel.setStyleSheet(panel_style)
         self.lap_panel.setStyleSheet(panel_style)
 
-        self.speed_label.setText(f"{self.speed:02.2f}")
+        label_text = self._label_text()
+        self.speed_label.setText(label_text)
+        self._resize_label_panel(label_text)
         self.lap_value_label.setText(format_seconds(self.lap_time))
         self.last_lap_value_label.setText(format_seconds(self.last_lap))
         self.best_lap_value_label.setText(format_seconds(self.best_lap))
