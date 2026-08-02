@@ -25,6 +25,7 @@ AutoDRIVE command topics by default, with optional F1TENTH-compatible
 - Optional front camera preview from `sensor_msgs/Image`.
 - Optional lap time, last lap, best lap, speed, and collision count display.
 - Configurable vehicle namespace and telemetry topics.
+- Configurable label displayed in the top-left corner of the dashboard.
 - Smooth throttle and steering ramping.
 
 ## Requirements
@@ -110,6 +111,29 @@ Use a different vehicle namespace with `--namespace`:
 
 ```bash
 ./autodrive_teleop.py --ros 2 --namespace /autodrive/roboracer_sagolyuksu
+```
+
+Use `--label` to display a custom string in the top-left corner of the
+dashboard. The default label is `Roboracer 1`:
+
+```bash
+./autodrive_teleop.py --ros 2 --label "Roboracer 1 - F1TENTH Model"
+```
+
+This is especially useful when running multiple RoboRacer instances. Assign a
+label that identifies the software or model used by each instance so that the
+dashboard windows can be distinguished at a glance:
+
+```bash
+./autodrive_teleop.py \
+  --ros 2 \
+  --namespace /autodrive/roboracer_1 \
+  --label "Pure Pursuit"
+
+./autodrive_teleop.py \
+  --ros 2 \
+  --namespace /autodrive/roboracer_2 \
+  --label "RL Model"
 ```
 
 The AutoDRIVE bridge or simulator must subscribe to the same command topics. If
